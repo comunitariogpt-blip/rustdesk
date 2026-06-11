@@ -38,6 +38,7 @@ import 'desktop/pages/remote_page.dart' as desktop_remote;
 import 'desktop/pages/file_manager_page.dart' as desktop_file_manager;
 import 'desktop/pages/view_camera_page.dart' as desktop_view_camera;
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
+import 'package:flutter_hbb/common/widgets/login.dart';
 import 'models/model.dart';
 import 'models/platform_model.dart';
 
@@ -2558,6 +2559,10 @@ connect(BuildContext context, String id,
       }
     } catch (_) {}
   }
+  if (bind.mainGetOptionSync(key: 'require-login') == 'Y' && !gFFI.userModel.isLogin) {
+    final ok = await loginDialog();
+    if (ok != true) return;
+  }
   id = id.replaceAll(' ', '');
   final oldId = id;
   id = await bind.mainHandleRelayId(id: id);
@@ -3697,7 +3702,7 @@ Widget loadPowered(BuildContext context) {
     cursor: SystemMouseCursors.click,
     child: GestureDetector(
       onTap: () {
-        launchUrl(Uri.parse('https://rustdesk.com'));
+        launchUrl(Uri.parse('https://onspace.com.br'));
       },
       child: Opacity(
           opacity: 0.5,
@@ -3907,7 +3912,7 @@ get defaultOptionAccessMode => isCustomClient ? 'custom' : '';
 get defaultOptionApproveMode => isCustomClient ? 'password-click' : '';
 
 bool whitelistNotEmpty() {
-  // https://rustdesk.com/docs/en/self-host/client-configuration/advanced-settings/#whitelist
+  // https://onspace.com.br/docs/en/self-host/client-configuration/advanced-settings/#whitelist
   final v = bind.mainGetOptionSync(key: kOptionWhitelist);
   return v != '' && v != ',';
 }
