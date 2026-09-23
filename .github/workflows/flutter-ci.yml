@@ -1,21 +1,10 @@
 name: Full Flutter CI
 
+# Gatilhos automaticos desativados. ATENCAO: este workflow chama o
+# flutter-build.yml inteiro (todas as plataformas) - rodava um build completo a
+# cada push no master. Rode manualmente em Actions -> Run workflow.
 on:
   workflow_dispatch:
-  pull_request:
-    paths-ignore:
-    - "docs/**"
-    - "README.md"
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - ".github/**"
-      - "docs/**"
-      - "README.md"
-      - "res/**"
-      - "appimage/**"
-      - "flatpak/**"
 
 jobs:
   run-ci:

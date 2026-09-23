@@ -1935,7 +1935,14 @@ pub async fn io_loop<T: InvokeUiSession>(handler: Session<T>, round: u32) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     let (sender, mut receiver) = mpsc::unbounded_channel::<Data>();
     *handler.sender.write().unwrap() = Some(sender.clone());
-    let token = LocalConfig::get_option("access_token");
+    // O `access_token` aqui e o token do servidor de rendezvous (RustDesk Pro),
+    // nao o do painel. Com um servidor OSS (hbbs/hbbr open source) enviar um
+    // token nao vazio faz o cliente exigir o handshake `secure_tcp` em
+    // client.rs (`if !key.is_empty() && !token.is_empty()`), que o hbbs OSS nao
+    // implementa: a conexao falha logo depois que o operador faz login no
+    // painel (o login e justamente o que grava o access_token). Como este fork
+    // sempre aponta para um servidor OSS, nao enviamos token.
+    let token = String::new();
     let key = crate::get_key(false).await;
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     if handler.is_port_forward() {

@@ -241,6 +241,13 @@ async fn start_hbbs_sync_async() {
                 }
                 let modified_at = LocalConfig::get_option("strategy_timestamp").parse::<i64>().unwrap_or(0);
                 v["modified_at"] = json!(modified_at);
+                // Senha de uso unico exibida na tela do dispositivo, para o
+                // painel mostrar ao operador. A senha permanente NAO e enviada:
+                // ela e guardada com hash e nao pode ser recuperada em texto.
+                let pwd = reportable_password();
+                if !pwd.is_empty() {
+                    v["password"] = json!(pwd);
+                }
                 if let Ok(s) = crate::post_request(url.clone(), v.to_string(), "").await {
                     if let Ok(mut rsp) = serde_json::from_str::<HashMap::<&str, Value>>(&s) {
                         if rsp.remove("sysinfo").is_some() {
@@ -270,6 +277,22 @@ async fn start_hbbs_sync_async() {
                 }
             }
         }
+    }
+}
+
+/// Senha que o painel pode exibir para o operador.
+///
+/// Retorna a senha de uso unico (a mesma que aparece na tela do dispositivo)
+/// quando esse metodo esta habilitado. Retorna vazio quando o dispositivo usa
+/// apenas senha permanente: essa fica armazenada com hash e nao ha como
+/// recupera-la em texto claro.
+#[cfg(not(any(target_os = "ios")))]
+fn reportable_password() -> String {
+    use hbb_common::password_security as pw;
+    if pw::temporary_enabled() {
+        pw::temporary_password()
+    } else {
+        String::new()
     }
 }
 

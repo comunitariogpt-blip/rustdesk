@@ -1,19 +1,9 @@
 name: wf-cliprdr CI
 
+# Gatilhos automaticos desativados. Rode manualmente se mexer no clipboard
+# do Windows (libs/clipboard/src/windows).
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "libs/clipboard/src/windows/**"
-      - "tests/test_invariant_wf_cliprdr.c"
-      - ".github/workflows/wf-cliprdr-ci.yml"
-  push:
-    branches:
-      - master
-    paths:
-      - "libs/clipboard/src/windows/**"
-      - "tests/test_invariant_wf_cliprdr.c"
-      - ".github/workflows/wf-cliprdr-ci.yml"
 
 permissions:
   contents: read

@@ -1,13 +1,17 @@
 name: Flutter Nightly Build
 
+# Build noturno DESATIVADO: o agendamento diario consumia minutos/armazenamento
+# do GitHub Actions sem necessidade. Rode manualmente em Actions -> Run workflow.
 on:
-  schedule:
-    # schedule build every night
-    - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
   run-flutter-nightly-build:
+    # Necessario para publicar o Release (ver flutter-tag.yml).
+    permissions:
+      contents: write
+      # Idem flutter-tag.yml: necessario para o job `collect-logs`.
+      actions: read
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:

@@ -29,6 +29,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:window_size/window_size.dart' as window_size;
 
 import '../consts.dart';
+import 'common/widgets/login.dart';
 import 'common/widgets/overlay.dart';
 import 'mobile/pages/file_manager_page.dart';
 import 'mobile/pages/remote_page.dart';
@@ -2530,6 +2531,25 @@ connectMainDesktop(String id,
   }
 }
 
+/// Politica central de login: o valor Y/N enviado pelo painel em
+/// /api/heartbeat prevalece; sem politica recebida ainda, vale o padrao
+/// embutido no build (kRequireLoginDefault, definido pelo custom.env).
+bool isLoginRequiredByPolicy() {
+  if (bind.isDisableAccount()) return false;
+  final policy = bind.mainGetOptionSync(key: kOptionRequireLogin);
+  if (policy.isNotEmpty) return policy == 'Y';
+  return kRequireLoginDefault;
+}
+
+/// Garante que ha um operador autenticado quando o painel exige login.
+/// Retorna false quando o login e obrigatorio e o operador desistiu/falhou,
+/// caso em que a conexao deve ser abortada.
+Future<bool> ensureOperatorLoggedIn() async {
+  if (!isLoginRequiredByPolicy()) return true;
+  if (gFFI.userModel.isLogin) return true;
+  return await loginDialog() == true;
+}
+
 /// Connect to a peer with [id].
 /// If [isFileTransfer], starts a session only for file transfer.
 /// If [isViewCamera], starts a session only for view camera.
@@ -2546,6 +2566,7 @@ connect(BuildContext context, String id,
     String? connToken,
     bool? isSharedPassword}) async {
   if (id == '') return;
+  if (!await ensureOperatorLoggedIn()) return;
   if (!isDesktop || desktopType == DesktopType.main) {
     try {
       if (Get.isRegistered<IDTextEditingController>()) {

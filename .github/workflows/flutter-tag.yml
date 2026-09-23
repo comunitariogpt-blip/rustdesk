@@ -1,23 +1,33 @@
 name: Flutter Tag Build
 
+# Somente manual: o gatilho por push de tag foi desativado para que nenhum
+# build comece sozinho. Informe o nome da tag no campo do "Run workflow".
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+    inputs:
+      tag:
+        description: "Nome da tag/release a ser gerado (ex.: v1.4.7-1)"
+        type: string
+        required: false
+        default: "manual-build"
 
 permissions:
   contents: write
 
 jobs:
   run-flutter-tag-build:
+    # Necessario para publicar o Release: sem isso o GITHUB_TOKEN e somente
+    # leitura em repositorios novos e todos os passos "Publish ..." falham.
+    permissions:
+      contents: write
+      # `actions: read` alimenta o job `collect-logs`, que baixa o log de cada
+      # job e publica tudo no artifact `run-logs-<run_id>`.
+      actions: read
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     permissions:
       contents: write
     with:
       upload-artifact: true
-      upload-tag: ${{ github.ref_name }}
+      # Em execucao manual usa a tag informada; no push de tag usa a propria tag.
+      upload-tag: ${{ inputs.tag || github.ref_name }}

@@ -1,3 +1,23 @@
+# 🔧 Fork customizado (cliente do painel rustdesk-config)
+
+> Este repositório é um **fork do [RustDesk](https://github.com/rustdesk/rustdesk)**
+> usado como cliente da stack de suporte remoto do painel
+> [**rustdesk-config**](https://github.com/comunitariogpt-blip/rustdesk-config)
+> (servidor próprio `hbbs`/`hbbr` + painel web de operadores/dispositivos/sessões).
+>
+> **Para apontar o cliente para o SEU servidor** (IP/domínio, chave pública e
+> URL do painel), edite **um único arquivo**: [`custom.env`](custom.env). O
+> build do GitHub Actions aplica os valores automaticamente em todas as
+> plataformas.
+>
+> 📖 **Guia completo em português:** [docs/CUSTOM-SERVER-PTBR.md](docs/CUSTOM-SERVER-PTBR.md)
+> — configuração, compilação via GitHub Actions ou local, logo própria e
+> distribuição pelo painel.
+
+---
+
+*Abaixo segue o README original do RustDesk.*
+
 <p align="center">
   <img src="res/logo-header.svg" alt="RustDesk - Your remote desktop"><br>
   <a href="#raw-steps-to-build">Build</a> •
