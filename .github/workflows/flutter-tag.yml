@@ -25,8 +25,6 @@ jobs:
       actions: read
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
-    permissions:
-      contents: write
     with:
       upload-artifact: true
       # Em execucao manual usa a tag informada; no push de tag usa a propria tag.
