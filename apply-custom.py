@@ -15,6 +15,9 @@ O que ele altera (apenas se o valor correspondente estiver preenchido):
   3. src/common.rs                 -> fallback da API      (API_SERVER)
   4. flutter/lib/consts.dart       -> login obrigatorio    (REQUIRE_LOGIN)
   5. libs/hbb_common/src/config.rs -> HARD/BUILTIN_SETTINGS (BUILD_VARIANT)
+  6. libs/hbb_common/src/config.rs -> APP_NAME              (APP_NAME)
+     flutter/windows/runner/Runner.rc -> nome no .exe do Windows
+     res/*.desktop                -> nome no menu do Linux
 
 Variaveis de ambiente com os mesmos nomes tem prioridade sobre o custom.env
 (util para configurar via GitHub Secrets sem commitar valores).
@@ -32,6 +35,16 @@ ENV_FILE = os.path.join(ROOT, "custom.env")
 CONFIG_RS = os.path.join(ROOT, "libs", "hbb_common", "src", "config.rs")
 COMMON_RS = os.path.join(ROOT, "src", "common.rs")
 CONSTS_DART = os.path.join(ROOT, "flutter", "lib", "consts.dart")
+RUNNER_RC = os.path.join(ROOT, "flutter", "windows", "runner", "Runner.rc")
+DESKTOP_FILES = (
+    os.path.join(ROOT, "res", "rustdesk.desktop"),
+    os.path.join(ROOT, "res", "rustdesk-link.desktop"),
+)
+
+# APP_NAME vira caminho de pasta de config, nome de servico, prefixo de URI
+# (<app_name>://) e literal Rust. Restringir aos caracteres seguros evita tanto
+# caminho invalido no Windows quanto injecao no codigo gerado.
+APP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,31}$")
 
 # ---------------------------------------------------------------------------
 # Variantes de build. As chaves abaixo sao opcoes nativas do RustDesk:
@@ -107,6 +120,7 @@ def patch_static_map(path, name, pairs, label, check_only):
 
 def load_env():
     values = {
+        "APP_NAME": "",
         "RENDEZVOUS_SERVER": "",
         "RS_PUB_KEY": "",
         "API_SERVER": "",
@@ -167,6 +181,79 @@ def resolve_variant(values):
     return VARIANT_ALIASES[raw]
 
 
+def patch_app_name(app_name, check_only):
+    """Troca "RustDesk" pelo APP_NAME em tudo que o usuario final enxerga.
+
+    O grosso vem de graca: `lang.rs` ja substitui "RustDesk" pelo APP_NAME em
+    toda string traduzida quando `is_rustdesk()` e falso, e a barra de titulo /
+    taskbar do Windows le o nome via `get_rustdesk_app_name` (src/flutter.rs),
+    que devolve o mesmo APP_NAME. Aqui so precisamos trocar a origem do valor e
+    os textos que ficam fora do Rust (recurso do .exe e atalhos do Linux).
+    """
+    if not APP_NAME_RE.match(app_name):
+        print("ERRO: APP_NAME invalido: %r" % app_name)
+        print("      Use de 1 a 32 caracteres, apenas letras, numeros e hifen")
+        print("      (o valor vira pasta de config, nome de servico e prefixo")
+        print("      de URI <app_name>://).")
+        sys.exit(1)
+
+    patch_file(
+        CONFIG_RS,
+        r'pub static ref APP_NAME: RwLock<String> = RwLock::new\("[^"]*"\.to_owned\(\)\);',
+        'pub static ref APP_NAME: RwLock<String> = RwLock::new("%s".to_owned());'
+        % app_name,
+        "APP_NAME = %s" % app_name,
+        check_only,
+    )
+
+    # Recurso de versao do .exe do Windows: e o que o Gerenciador de Tarefas
+    # mostra na coluna "Nome" e o que aparece em Propriedades -> Detalhes.
+    # InternalName/OriginalFilename ficam como estao: o binario continua
+    # se chamando rustdesk.exe.
+    if os.path.isfile(RUNNER_RC):
+        patch_file(
+            RUNNER_RC,
+            r'VALUE "FileDescription", "[^"]*"',
+            'VALUE "FileDescription", "%s Remote Desktop"' % app_name,
+            "APP_NAME em FileDescription (Runner.rc)",
+            check_only,
+        )
+        patch_file(
+            RUNNER_RC,
+            r'VALUE "ProductName", "[^"]*"',
+            'VALUE "ProductName", "%s"' % app_name,
+            "APP_NAME em ProductName (Runner.rc)",
+            check_only,
+        )
+
+    # Atalhos do Linux. `Exec=`/`Icon=` continuam apontando para "rustdesk"
+    # (nome do binario e do arquivo de icone instalado); so o nome exibido e o
+    # esquema de URI acompanham o APP_NAME — get_uri_prefix() em src/common.rs
+    # deriva o esquema de APP_NAME.to_lowercase().
+    for path in DESKTOP_FILES:
+        if not os.path.isfile(path):
+            continue
+        # O \n faz parte do padrao e da substituicao de proposito: sem ele a
+        # checagem de idempotencia de patch_file ("replacement in content")
+        # casaria com "GenericName=<APP_NAME> ..." e pularia o patch.
+        patch_file(
+            path,
+            r'(?m)\nName=(?!Open a New Window$).*$',
+            "\nName=%s" % app_name,
+            "APP_NAME em %s" % os.path.basename(path),
+            check_only,
+        )
+        with open(path, "r", encoding="utf-8") as f:
+            if "x-scheme-handler/" in f.read():
+                patch_file(
+                    path,
+                    r'x-scheme-handler/[^;]*;',
+                    "x-scheme-handler/%s;" % app_name.lower(),
+                    "esquema de URI em %s" % os.path.basename(path),
+                    check_only,
+                )
+
+
 def main():
     check_only = "--check" in sys.argv
     values = load_env()
@@ -180,6 +267,9 @@ def main():
         print(f"ERRO: {CONFIG_RS} nao existe.")
         print("      Baixe os submodulos: git submodule update --init --recursive")
         sys.exit(1)
+
+    if values["APP_NAME"]:
+        patch_app_name(values["APP_NAME"], check_only)
 
     if values["RENDEZVOUS_SERVER"]:
         patch_file(

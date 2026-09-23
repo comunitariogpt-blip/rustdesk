@@ -102,6 +102,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -260,16 +261,44 @@ jobs:
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
 
       - name: Build self-extracted executable
+        id: packer
         shell: bash
         if: env.UPLOAD_ARTIFACT == 'true'
+        # NAO derruba o job: o rustdesk.exe ja foi compilado e enviado como
+        # artifact no passo anterior. Se so o empacotador falhar, o passo
+        # seguinte gera um ZIP portable com o mesmo conteudo, para o Release
+        # nunca sair sem entregavel de Windows.
+        continue-on-error: true
         run: |
+          set -x
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
-          pip3 install -r requirements.txt
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
           python3 ./generate.py -f ../../rustdesk/ -o . -e ../../rustdesk/rustdesk.exe
           popd
           mkdir -p ./SignOutput
           mv ./target/release/rustdesk-portable-packer.exe ./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-${{ matrix.variant }}.exe
+          ls -l ./SignOutput
+
+      - name: Fallback ZIP portable (se o self-extractor falhar)
+        if: env.UPLOAD_ARTIFACT == 'true' && steps.packer.outcome != 'success'
+        shell: bash
+        run: |
+          set -x
+          mkdir -p ./SignOutput
+          ZIP="./SignOutput/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}-${{ matrix.variant }}-portable.zip"
+          7z a -tzip "$ZIP" ./rustdesk/* \
+            || powershell -NoProfile -Command "Compress-Archive -Path './rustdesk/*' -DestinationPath '$ZIP' -Force"
+          ls -l ./SignOutput
+          {
+            echo "### :warning: ${{ matrix.variant }}: self-extractor falhou"
+            echo ""
+            echo "Publicado o ZIP portable no lugar do .exe auto-extraivel."
+            echo "Descompacte e rode \`rustdesk.exe\` — a configuracao do servidor"
+            echo "ja esta embutida. Veja o log da etapa *Build self-extracted"
+            echo "executable* (ou o artifact \`run-logs\`) para a causa."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # O MSI (instalador) nao e gerado: as variantes operador/cliente sao
       # distribuidas apenas como executavel portable, sem instalacao.
@@ -286,8 +315,10 @@ jobs:
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
+          # O .zip so existe quando o self-extractor falhou (passo de fallback).
           files: |
             ./SignOutput/rustdesk-*.exe
+            ./SignOutput/rustdesk-*.zip
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
@@ -328,6 +359,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -493,6 +525,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -632,6 +665,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -965,6 +999,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -1181,6 +1216,12 @@ jobs:
     name: build rustdesk android universal apk
     if: ${{ inputs.upload-artifact }}
     runs-on: ubuntu-24.04
+    # No run 32286588577 este job travou e so morreu no limite de 6h do GitHub,
+    # derrubando o resultado final. Os APKs por arquitetura ja saem em
+    # `build-rustdesk-android`, entao aqui o universal e best-effort: morre em
+    # 90 min e nao reprova o run.
+    timeout-minutes: 90
+    continue-on-error: true
     env:
       reltype: release
       x86_target: "" # can be ",android-x86"
@@ -1251,6 +1292,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -1430,6 +1472,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -1774,6 +1817,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -1993,6 +2037,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -2080,6 +2125,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -2155,6 +2201,7 @@ jobs:
           # Actions -> Variables) tem prioridade sobre o custom.env. Assim cada
           # fork aponta para o seu servidor sem editar arquivo versionado, e o
           # Sync fork nunca da conflito. Vazias = usa o custom.env.
+          APP_NAME: ${{ vars.APP_NAME || secrets.APP_NAME }}
           RENDEZVOUS_SERVER: ${{ vars.RENDEZVOUS_SERVER || secrets.RENDEZVOUS_SERVER }}
           RS_PUB_KEY: ${{ vars.RS_PUB_KEY || secrets.RS_PUB_KEY }}
           API_SERVER: ${{ vars.API_SERVER || secrets.API_SERVER }}
@@ -2218,3 +2265,99 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           files: |
             flutter/build/rustdesk-${{ env.VERSION }}-${{ env.RELEASE_NAME }}.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Logs do run como entregavel.
+  #
+  # Roda por ultimo e SEMPRE (inclusive quando algum build falha, que e quando
+  # ele importa): baixa pela API o log de cada job ja concluido e sobe tudo no
+  # artifact `run-logs-<run_id>`, um .txt por job, prefixado pelo resultado.
+  # Tambem joga o final de cada log que falhou no Summary do run, para triagem
+  # sem precisar baixar nada.
+  #
+  # Requer `actions: read` no job que chama este workflow (flutter-tag.yml e
+  # flutter-nightly.yml ja concedem). O proprio log deste job nao entra no
+  # pacote — ele ainda esta rodando quando o download acontece.
+  # ---------------------------------------------------------------------------
+  collect-logs:
+    name: collect run logs
+    if: always() && inputs.upload-artifact
+    needs:
+      - generate-bridge
+      - build-RustDeskTempTopMostWindow
+      - build-for-windows-flutter
+      - build-for-windows-sciter
+      - build-rustdesk-ios
+      - build-for-macOS
+      - publish_unsigned
+      - build-rustdesk-android
+      - build-rustdesk-android-universal
+      - build-rustdesk-linux
+      - build-rustdesk-linux-sciter
+      - build-appimage
+      - build-flatpak
+      - build-rustdesk-web
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Baixar o log de cada job concluido
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          mkdir -p run-logs
+          gh api --paginate "/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.status == "completed") | [.id, .conclusion, .name] | @tsv' \
+            > /tmp/jobs.tsv
+          echo "Jobs concluidos: $(wc -l < /tmp/jobs.tsv)"
+          while IFS=$'\t' read -r id conclusion name; do
+            [ -n "${id:-}" ] || continue
+            safe=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_' | cut -c1-80)
+            out="run-logs/${conclusion}--${safe}--${id}.txt"
+            if ! gh api "/repos/$REPO/actions/jobs/$id/logs" > "$out" 2>/tmp/gh.err; then
+              # Fallback: pega a URL assinada e baixa sem o header de auth
+              # (o storage rejeita as duas credenciais ao mesmo tempo).
+              url=$(curl -sS -o /dev/null -w '%{redirect_url}' \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                "https://api.github.com/repos/$REPO/actions/jobs/$id/logs")
+              if [ -n "$url" ]; then
+                curl -sSL "$url" -o "$out"
+              else
+                { echo "Log indisponivel para o job $id ($name)."; cat /tmp/gh.err; } > "$out"
+              fi
+            fi
+            printf '  %-10s %8s bytes  %s\n' "$conclusion" "$(wc -c < "$out")" "$name"
+          done < /tmp/jobs.tsv
+
+      - name: Resumo das falhas no Summary do run
+        if: always()
+        run: |
+          {
+            echo "## Logs deste run"
+            echo ""
+            echo "Artifact: \`run-logs-${{ github.run_id }}\` — um .txt por job,"
+            echo "nomeado \`<resultado>--<job>--<id>.txt\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          shopt -s nullglob
+          for f in run-logs/failure--*.txt run-logs/cancelled--*.txt; do
+            {
+              echo ""
+              echo "<details><summary>$(basename "$f")</summary>"
+              echo ""
+              echo '```'
+              tail -n 80 "$f"
+              echo '```'
+              echo ""
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Subir os logs como artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: run-logs-${{ github.run_id }}
+          path: run-logs/
+          retention-days: 30
+          if-no-files-found: warn

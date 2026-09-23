@@ -17,6 +17,9 @@ jobs:
     # leitura em repositorios novos e todos os passos "Publish ..." falham.
     permissions:
       contents: write
+      # `actions: read` alimenta o job `collect-logs`, que baixa o log de cada
+      # job e publica tudo no artifact `run-logs-<run_id>`.
+      actions: read
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:

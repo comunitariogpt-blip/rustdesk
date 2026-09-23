@@ -10,6 +10,8 @@ jobs:
     # Necessario para publicar o Release (ver flutter-tag.yml).
     permissions:
       contents: write
+      # Idem flutter-tag.yml: necessario para o job `collect-logs`.
+      actions: read
     uses: ./.github/workflows/flutter-build.yml
     secrets: inherit
     with:
