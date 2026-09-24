@@ -1705,6 +1705,7 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
 chcp 65001
 md \"{path}\"
 {copy_exe}
+{rename_exe}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
 reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
@@ -1742,6 +1743,12 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         sleep = if debug { "timeout 300" } else { "" },
         dels = if debug { "" } else { &dels },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
+        // O XCOPY copia o binario com o nome do build (rustdesk.exe), mas todo o
+        // resto (is_installed, servico, atalhos, UninstallString) aponta para
+        // <APP_NAME>.exe. Sem renomear, qualquer APP_NAME diferente de
+        // "RustDesk" instala um servico apontando para um .exe inexistente e o
+        // app continua mostrando o botao "Instalar". update_me ja faz isso.
+        rename_exe = rename_exe_cmd(&src_exe, &path)?,
         import_config = get_import_config(&exe),
     );
     run_cmds(cmds, debug, "install")?;
