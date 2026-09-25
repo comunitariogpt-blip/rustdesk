@@ -15,7 +15,7 @@ O que ele altera (apenas se o valor correspondente estiver preenchido):
   3. src/common.rs                 -> fallback da API      (API_SERVER)
   4. flutter/lib/consts.dart       -> login obrigatorio    (REQUIRE_LOGIN)
   5. libs/hbb_common/src/config.rs -> HARD/BUILTIN_SETTINGS (BUILD_VARIANT)
-  6. libs/hbb_common/src/config.rs -> APP_NAME              (APP_NAME)
+  6. libs/hbb_common/src/config.rs -> APP_NAME              (APP_NAME + "Suporte")
      flutter/windows/runner/Runner.rc -> nome no .exe do Windows
      res/*.desktop                -> nome no menu do Linux
 
@@ -45,6 +45,17 @@ DESKTOP_FILES = (
 # (<app_name>://) e literal Rust. Restringir aos caracteres seguros evita tanto
 # caminho invalido no Windows quanto injecao no codigo gerado.
 APP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,31}$")
+
+# O nome final do app e a marca + este sufixo: APP_NAME=Empsis gera
+# "EmpsisSuporte". Junto, sem espaco, pelo mesmo motivo do APP_NAME_RE.
+APP_NAME_SUFFIX = "Suporte"
+
+
+def full_app_name(brand):
+    """Aplica o sufixo, sem duplicar se o APP_NAME ja vier com ele."""
+    if brand.lower().endswith(APP_NAME_SUFFIX.lower()):
+        return brand
+    return brand + APP_NAME_SUFFIX
 
 # ---------------------------------------------------------------------------
 # Variantes de build. As chaves abaixo sao opcoes nativas do RustDesk:
@@ -269,7 +280,7 @@ def main():
         sys.exit(1)
 
     if values["APP_NAME"]:
-        patch_app_name(values["APP_NAME"], check_only)
+        patch_app_name(full_app_name(values["APP_NAME"]), check_only)
 
     if values["RENDEZVOUS_SERVER"]:
         patch_file(
